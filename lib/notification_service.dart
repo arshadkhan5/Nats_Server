@@ -1,62 +1,94 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 class NotificationService {
-  static final FlutterLocalNotificationsPlugin notificationsPlugin =
-  FlutterLocalNotificationsPlugin();
+  static final NotificationService _instance = NotificationService._internal();
+  factory NotificationService() => _instance;
+  NotificationService._internal();
 
-  static Future<void> initialize() async {
-    const AndroidInitializationSettings initializationSettingsAndroid =
+  final FlutterLocalNotificationsPlugin notifications = FlutterLocalNotificationsPlugin();
+  bool _isInitialized = false;
+
+  Future<void> initialize() async {
+    if (_isInitialized) return;
+
+    const AndroidInitializationSettings androidSettings =
     AndroidInitializationSettings('@mipmap/ic_launcher');
 
-    // Add iOS settings to avoid the error
-    const DarwinInitializationSettings initializationSettingsIOS =
-    DarwinInitializationSettings(
-      requestAlertPermission: false,
-      requestBadgePermission: false,
-      requestSoundPermission: false,
+    const DarwinInitializationSettings iosSettings = DarwinInitializationSettings(
+      requestAlertPermission: true,
+      requestBadgePermission: true,
+      requestSoundPermission: true,
     );
 
-    const InitializationSettings initializationSettings =
-    InitializationSettings(
-      android: initializationSettingsAndroid,
-      iOS: initializationSettingsIOS,
-      macOS: initializationSettingsIOS, // Add macOS as well
+    const InitializationSettings settings = InitializationSettings(
+      android: androidSettings,
+      iOS: iosSettings,
     );
 
-    await notificationsPlugin.initialize(
-      initializationSettings,
-      onDidReceiveNotificationResponse: (NotificationResponse notificationResponse) async {
-        // Handle notification tap if needed
-      },
+    await notifications.initialize(settings);
+    await _createNotificationChannel();
+
+    _isInitialized = true;
+    print('✅ Notifications initialized');
+  }
+
+  Future<void> _createNotificationChannel() async {
+    const AndroidNotificationChannel channel = AndroidNotificationChannel(
+      'high_importance_channel',
+      'High Importance Notifications',
+      description: 'Important notifications for NATS messages',
+      importance: Importance.high,
+      playSound: true,
+      enableVibration: true,
+    );
+
+    await notifications.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>()?.createNotificationChannel(channel);
+  }
+
+  NotificationDetails _getNotificationDetails() {
+    return const NotificationDetails(
+      android: AndroidNotificationDetails(
+        'high_importance_channel',
+        'High Importance Notifications',
+        channelDescription: 'Important notifications for NATS messages',
+        importance: Importance.high,
+        priority: Priority.high,
+        playSound: true,
+        enableVibration: true,
+        showWhen: true,
+        autoCancel: true,
+        colorized: true,
+        color: Colors.blue,
+      ),
+      iOS: DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      ),
     );
   }
 
-  static Future<void> showNotification(String message) async {
-    const AndroidNotificationDetails androidPlatformChannelSpecifics =
-    AndroidNotificationDetails(
-      'nats_channel',
-      'NATS Messages',
-      channelDescription: 'Notifications for NATS messages',
-      importance: Importance.max,
-      priority: Priority.high,
-      showWhen: true,
-    );
+  Future<void> showNotification({
+    int id = 0,
+    required String title,
+    required String body,
+    String? payload,
+  }) async {
+    if (!_isInitialized) await initialize();
 
-    // Add iOS notification details
-    const DarwinNotificationDetails iOSPlatformChannelSpecifics =
-    DarwinNotificationDetails();
-
-    const NotificationDetails platformChannelSpecifics =
-    NotificationDetails(
-      android: androidPlatformChannelSpecifics,
-      iOS: iOSPlatformChannelSpecifics,
-    );
-
-    await notificationsPlugin.show(
-      DateTime.now().millisecondsSinceEpoch % 100000, // Unique ID
-      'New NATS Message',
-      message,
-      platformChannelSpecifics,
-    );
+    try {
+      await notifications.show(
+        id,
+        title,
+        body,
+        _getNotificationDetails(),
+        payload: payload,
+      );
+      print('✅ Notification shown: $title - $body');
+    } catch (e) {
+      print('❌ Error showing notification: $e');
+    }
   }
 }

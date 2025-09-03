@@ -1,4 +1,90 @@
 import 'dart:async';
+import 'package:dart_nats/dart_nats.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_background_service/flutter_background_service.dart';
+
+import 'notification_service.dart';
+
+class NatsService {
+  static final Client _client = Client();
+  static bool _connected = false;
+
+  static bool get isConnected => _connected;
+
+  static Future<void> connect() async {
+    try {
+      final uri = Uri.parse("nats://161.97.129.123:4222");
+
+      await _client.connect(
+        uri,
+        connectOption: ConnectOption(
+          user: 'arif',
+          pass: 'arshad',
+        ),
+      );
+
+      _connected = true;
+      print("Connected to NATS server.");
+
+    } catch (e) {
+      print("NATS connection error: $e");
+      _connected = false;
+      rethrow;
+    }
+  }
+
+  // Helper method to check if background service is running
+  static Future<bool> isBackgroundServiceRunning() async {
+    try {
+      // We'll use a simpler approach - just assume it's running
+      // since we start it automatically
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  static Future<void> subscribe(String subject, Function(String) onMessage) async {
+    if (!_connected) {
+      await connect();
+    }
+
+    _client.sub(subject)?.stream.listen((Message msg) async {
+      final String message = msg.string ?? '[Non-UTF8 Message]';
+      print("Received: $message");
+
+      // Only show notification if background service is not running
+      // (to avoid duplicate notifications)
+      final bool isBgRunning = await isBackgroundServiceRunning();
+      if (!isBgRunning) {
+        await NotificationService().showNotification(
+            title: "New NATS Message",
+            body: message
+        );
+      }
+
+      onMessage(message);
+    });
+  }
+
+  static Future<void> publish(String subject, String message) async {
+    if (!_connected) {
+      await connect();
+    }
+
+    _client.pubString(subject, message);
+    print('Message published to "$subject": $message');
+  }
+
+  static Future<void> disconnect() async {
+    _client.close();
+    _connected = false;
+    print("Disconnected from NATS server.");
+  }
+}
+
+/*
+import 'dart:async';
 
 import 'package:dart_nats/dart_nats.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -41,6 +127,10 @@ class NatsService {
     _client.sub(subject)?.stream.listen((Message msg) {
       final String message = msg.string ?? '[Non-UTF8 Message]';
       print("Received: $message");
+      NotificationService().showNotification(
+          title: message,
+          body: message
+      );
       onMessage(message);
     });
   }
@@ -51,6 +141,7 @@ class NatsService {
     }
 
     _client.pubString(subject, message);
+
     print('Message published to "$subject": $message');
   }
 
@@ -83,15 +174,7 @@ class NatsService {
         final String message = msg.string ?? '[Non-UTF8 Message]';
         final int timestamp = DateTime.now().millisecondsSinceEpoch;
 
-        if (timestamp > lastTimestamp) {
-          await NotificationService.showNotification(message);
-          await prefs.setInt('last_message_timestamp', timestamp);
 
-          // Also store the message for when the app opens
-          final List<String> cachedMessages = prefs.getStringList('cached_messages') ?? [];
-          cachedMessages.insert(0, message);
-          await prefs.setStringList('cached_messages', cachedMessages);
-        }
       });
 
       // Wait for a short time to receive messages
@@ -108,4 +191,4 @@ class NatsService {
       return Future.value();
     }
   }
-}
+}*/
