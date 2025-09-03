@@ -1,0 +1,40 @@
+group 'id.flutter.flutter_background_service'
+version '1.0'
+
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.6.0'
+    }
+}
+
+rootProject.allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+apply plugin: 'com.android.library'
+
+android {
+namespace "com.example.flutter_background_service_android"lutter_background_service_android"
+    compileSdkVersion 33
+
+    defaultConfig {
+        minSdkVersion 16
+        consumerProguardFiles 'proguard-rules.pro'
+    }
+
+    lintOptions {
+        disable 'InvalidPackage'
+    }
+}
+
+dependencies {
+
+}
